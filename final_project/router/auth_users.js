@@ -9,21 +9,93 @@ const isValid = (username)=>{ //returns boolean
 //write code to check is the username is valid
 }
 
-const authenticatedUser = (username,password)=>{ //returns boolean
-//write code to check if username and password match the one we have in records.
-}
+const authenticatedUser = (username, password) => {
+    return users.find(user => user.username === username && user.password === password);
+};
 
 //only registered users can login
 regd_users.post("/login", (req,res) => {
-  //Write your code here
-  return res.status(300).json({message: "Yet to be implemented"});
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+        return res.status(400).send('Username and password are required');
+    }
+    
+    const user = authenticatedUser(username, password);
+
+    if (!user) {
+        return res.status(401).send('Invalid username or password');
+    }
+
+    const token = jwt.sign({ username: user.username }, secretKey, { expiresIn: '1h' });
+
+    req.session.token = token;
+
+    return res.status(200).json({ message: "Login successful", token });
+
 });
 
 // Add a book review
 regd_users.put("/auth/review/:isbn", (req, res) => {
-  //Write your code here
-  return res.status(300).json({message: "Yet to be implemented"});
-});
+    const isbn = req.params.isbn;
+    const review = req.query.review;
+    const token = req.session.token;
+  
+    if (!token) {
+      return res.status(401).send('Unauthorized: No token provided');
+    }
+  
+    try {
+      const decoded = jwt.verify(token, secretKey);
+      const username = decoded.username;
+  
+      if (!books[isbn]) {
+        return res.status(404).send('Book not found');
+      }
+  
+      if (!review) {
+        return res.status(400).send('Review content is required');
+      }
+  
+      if (!books[isbn].reviews) {
+        books[isbn].reviews = {};
+      }
+  
+      books[isbn].reviews[username] = review;
+  
+      return res.status(200).json({ message: 'Review added/updated successfully', reviews: books[isbn].reviews });
+    } catch (error) {
+      return res.status(401).send('Unauthorized: Invalid token');
+    }
+  });
+
+  regd_users.delete("/auth/review/:isbn", (req, res) => {
+    const neededIsbn = req.params.isbn;
+    const neededToken = req.session.token;
+
+    if(!neededToken) {
+        return res.status(400).send('Bad request. No token.');
+    }
+
+    try {
+        const decoded = jwt.verify(token, secretKey);
+        const username = decoded.username;
+
+        if (!books[isbn]) {
+            return res.status(404).send('Book not found');
+        }
+
+        if (!books[isbn].reviews || !books[isbn].reviews[username]) {
+            return res.status(404).send('Review not found');
+        }
+
+        delete books[isbn].reviews[username];
+
+        return res.status(200).json({ message: 'Review deleted successfully', reviews: books[isbn].reviews });
+    } catch (error) {
+        return res.status(401).send('Unauthorized: Invalid token');
+    }
+  });
 
 module.exports.authenticated = regd_users;
 module.exports.isValid = isValid;
